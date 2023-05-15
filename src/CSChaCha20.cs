@@ -15,10 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-using System;
-using System.IO;
 using System.Text;
-using System.Threading.Tasks;
 using System.Runtime.CompilerServices; // For MethodImplOptions.AggressiveInlining
 
 namespace CSChaCha20
@@ -188,18 +185,6 @@ namespace CSChaCha20
         #region Encryption methods
 
         /// <summary>
-        /// Encrypt arbitrary-length byte array (input), writing the resulting byte array to preallocated output buffer.
-        /// </summary>
-        /// <remarks>Since this is symmetric operation, it doesn't really matter if you use Encrypt or Decrypt method</remarks>
-        /// <param name="output">Output byte array, must have enough bytes</param>
-        /// <param name="input">Input byte array</param>
-        /// <param name="numBytes">Number of bytes to encrypt</param>
-        public void EncryptBytes(byte[] output, byte[] input, int numBytes)
-        {
-            this.WorkBytes(output, input, numBytes);
-        }
-
-        /// <summary>
         /// Encrypt arbitrary-length byte stream (input), writing the resulting bytes to another stream (output)
         /// </summary>
         /// <param name="output">Output stream</param>
@@ -227,9 +212,9 @@ namespace CSChaCha20
         /// <remarks>Since this is symmetric operation, it doesn't really matter if you use Encrypt or Decrypt method</remarks>
         /// <param name="output">Output byte array, must have enough bytes</param>
         /// <param name="input">Input byte array</param>
-        public void EncryptBytes(byte[] output, byte[] input)
+        public void EncryptBytes(Span<byte> output, ReadOnlySpan<byte> input)
         {
-            this.WorkBytes(output, input, input.Length);
+            this.WorkBytes(output, input);
         }
 
         /// <summary>
@@ -239,23 +224,10 @@ namespace CSChaCha20
         /// <param name="input">Input byte array</param>
         /// <param name="numBytes">Number of bytes to encrypt</param>
         /// <returns>Byte array that contains encrypted bytes</returns>
-        public byte[] EncryptBytes(byte[] input, int numBytes)
-        {
-            byte[] returnArray = new byte[numBytes];
-            this.WorkBytes(returnArray, input, numBytes);
-            return returnArray;
-        }
-
-        /// <summary>
-        /// Encrypt arbitrary-length byte array (input), writing the resulting byte array that is allocated by method.
-        /// </summary>
-        /// <remarks>Since this is symmetric operation, it doesn't really matter if you use Encrypt or Decrypt method</remarks>
-        /// <param name="input">Input byte array</param>
-        /// <returns>Byte array that contains encrypted bytes</returns>
-        public byte[] EncryptBytes(byte[] input)
+        public byte[] EncryptBytes(ReadOnlySpan<byte> input)
         {
             byte[] returnArray = new byte[input.Length];
-            this.WorkBytes(returnArray, input, input.Length);
+            this.WorkBytes(returnArray, input);
             return returnArray;
         }
 
@@ -270,7 +242,7 @@ namespace CSChaCha20
             byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(input);
             byte[] returnArray = new byte[utf8Bytes.Length];
 
-            this.WorkBytes(returnArray, utf8Bytes, utf8Bytes.Length);
+            this.WorkBytes(returnArray, utf8Bytes);
             return returnArray;
         }
 
@@ -285,10 +257,9 @@ namespace CSChaCha20
         /// <remarks>Since this is symmetric operation, it doesn't really matter if you use Encrypt or Decrypt method</remarks>
         /// <param name="output">Output byte array</param>
         /// <param name="input">Input byte array</param>
-        /// <param name="numBytes">Number of bytes to decrypt</param>
-        public void DecryptBytes(byte[] output, byte[] input, int numBytes)
+        public void DecryptBytes(Span<byte> output, ReadOnlySpan<byte> input)
         {
-            this.WorkBytes(output, input, numBytes);
+            this.WorkBytes(output, input);
         }
 
         /// <summary>
@@ -314,42 +285,19 @@ namespace CSChaCha20
         }
 
         /// <summary>
-        /// Decrypt arbitrary-length byte array (input), writing the resulting byte array to preallocated output buffer.
-        /// </summary>
-        /// <remarks>Since this is symmetric operation, it doesn't really matter if you use Encrypt or Decrypt method</remarks>
-        /// <param name="output">Output byte array, must have enough bytes</param>
-        /// <param name="input">Input byte array</param>
-        public void DecryptBytes(byte[] output, byte[] input)
-        {
-            WorkBytes(output, input, input.Length);
-        }
-
-        /// <summary>
         /// Decrypt arbitrary-length byte array (input), writing the resulting byte array that is allocated by method.
         /// </summary>
         /// <remarks>Since this is symmetric operation, it doesn't really matter if you use Encrypt or Decrypt method</remarks>
         /// <param name="input">Input byte array</param>
         /// <param name="numBytes">Number of bytes to encrypt</param>
         /// <returns>Byte array that contains decrypted bytes</returns>
-        public byte[] DecryptBytes(byte[] input, int numBytes)
+        public byte[] DecryptBytes(Span<byte> input)
         {
-            byte[] returnArray = new byte[numBytes];
-            WorkBytes(returnArray, input, numBytes);
+            byte[] returnArray = new byte[input.Length];
+            WorkBytes(returnArray, input);
             return returnArray;
         }
 
-        /// <summary>
-        /// Decrypt arbitrary-length byte array (input), writing the resulting byte array that is allocated by method.
-        /// </summary>
-        /// <remarks>Since this is symmetric operation, it doesn't really matter if you use Encrypt or Decrypt method</remarks>
-        /// <param name="input">Input byte array</param>
-        /// <returns>Byte array that contains decrypted bytes</returns>
-        public byte[] DecryptBytes(byte[] input)
-        {
-            byte[] returnArray = new byte[input.Length];
-            WorkBytes(returnArray, input, input.Length);
-            return returnArray;
-        }
 
         /// <summary>
         /// Decrypt UTF8 byte array to string.
@@ -361,7 +309,7 @@ namespace CSChaCha20
         {
             byte[] tempArray = new byte[input.Length];
 
-            WorkBytes(tempArray, input, input.Length);
+            WorkBytes(tempArray, input);
             return System.Text.Encoding.UTF8.GetString(tempArray);
         }
 
@@ -377,7 +325,7 @@ namespace CSChaCha20
             while ((readBytes = input.Read(inputBuffer, 0, howManyBytesToProcessAtTime)) > 0)
             {
                 // Encrypt or decrypt
-                WorkBytes(output: outputBuffer, input: inputBuffer, numBytes: readBytes);
+                WorkBytes(output: outputBuffer, input: inputBuffer.AsSpan(0, readBytes));
 
                 // Write buffer
                 output.Write(outputBuffer, 0, readBytes);
@@ -388,18 +336,18 @@ namespace CSChaCha20
         {
             byte[] readBytesBuffer = new byte[howManyBytesToProcessAtTime];
             byte[] writeBytesBuffer = new byte[howManyBytesToProcessAtTime];
-            int howManyBytesWereRead = await input.ReadAsync(readBytesBuffer, 0, howManyBytesToProcessAtTime);
+            int readBytes = await input.ReadAsync(readBytesBuffer, 0, howManyBytesToProcessAtTime);
 
-            while (howManyBytesWereRead > 0)
+            while (readBytes > 0)
             {
                 // Encrypt or decrypt
-                WorkBytes(output: writeBytesBuffer, input: readBytesBuffer, numBytes: howManyBytesWereRead);
+                WorkBytes(output: writeBytesBuffer, input: readBytesBuffer.AsSpan(0, readBytes));
 
                 // Write
-                await output.WriteAsync(writeBytesBuffer, 0, howManyBytesWereRead);
+                await output.WriteAsync(writeBytesBuffer, 0, readBytes);
 
                 // Read more
-                howManyBytesWereRead = await input.ReadAsync(readBytesBuffer, 0, howManyBytesToProcessAtTime);
+                readBytes = await input.ReadAsync(readBytesBuffer, 0, howManyBytesToProcessAtTime);
             }
         }
 
@@ -409,7 +357,7 @@ namespace CSChaCha20
         /// <param name="output">Output byte array</param>
         /// <param name="input">Input byte array</param>
         /// <param name="numBytes">How many bytes to process</param>
-        private void WorkBytes(byte[] output, byte[] input, int numBytes)
+        private void WorkBytes(Span<byte> output, ReadOnlySpan<byte> input)
         {
             if (isDisposed)
             {
@@ -425,12 +373,7 @@ namespace CSChaCha20
             {
                 throw new ArgumentNullException("output", "Output cannot be null");
             }
-
-            if (numBytes < 0 || numBytes > input.Length)
-            {
-                throw new ArgumentOutOfRangeException("numBytes", "The number of bytes to read must be between [0..input.Length]");
-            }
-
+            int numBytes = input.Length;
             if (output.Length < numBytes)
             {
                 throw new ArgumentOutOfRangeException("output", $"Output byte array should be able to take at least {numBytes}");
